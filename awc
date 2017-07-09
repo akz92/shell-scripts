@@ -1,0 +1,71 @@
+#!/bin/sh
+
+IP_REGEX="[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}"
+# CONNECTED_IP_REGEX="$IP_REGEX(?!.*offline)"
+PORT_REGEX="^\d{4}$"
+DEVICE_IP=$(adb devices | grep -Eo "$IP_REGEX")
+PORT=5555
+
+persist_ip () {
+  echo "$DEVICE_IP" > /tmp/awc
+}
+
+connect () {
+  adb connect "$DEVICE_IP":"$PORT" | grep "unable to connect"
+  if [ $? -eq 0 ]; then
+    if [ -f "/tmp/awc" ]; then
+      rm /tmp/awc
+    fi
+
+    exit 1
+  else
+    persist_ip
+    echo "Connected to $DEVICE_IP:$PORT"
+  fi
+}
+
+# Connect to device
+if [ "$DEVICE_IP" ]; then
+  persist_ip
+  echo "Already connected to $DEVICE_IP"
+else
+  # Read port
+  while getopts ":i:p:" args; do
+    case $args  in
+      i)
+        echo "$OPTARG" | grep -Eq "$IP_REGEX"
+        if [ $? -eq 0 ]; then
+          DEVICE_IP="$OPTARG"
+        else
+          echo "Invalid ip: $OPTARG"
+          exit 1
+        fi
+        ;;
+      p)
+        echo "$OPTARG" | grep -Eq "$PORT_REGEX"
+        if [ $? -eq 0 ]; then
+          PORT="$OPTARG"
+        else
+          echo "Invalid port: $OPTARG"
+          exit 1
+        fi
+        ;;
+    esac
+  done
+
+  if [ -z "$DEVICE_IP" ]; then
+    DEVICE_IP=$(adb shell ip -f inet addr show wlan0 2> /dev/null | grep -Eo "$IP_REGEX" | head -1)
+  fi
+
+  if [ -z "$DEVICE_IP" ]; then
+    # Try to connect using last connected ip
+    if [ -f "/tmp/awc" ]; then
+      DEVICE_IP=$(cat /tmp/awc)
+    else
+      echo "No device available"
+      exit 1
+    fi
+  fi
+
+  connect
+fi
