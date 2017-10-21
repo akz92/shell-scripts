@@ -1,0 +1,21 @@
+#!/bin/sh
+
+add_verification_digit() {
+  local count=1
+  local sum=0
+
+  for (( i=${#digits}-1; i>=0; i-- )); do
+    count=$(( count + 1 ))
+    sum=$(( sum + ${digits:$i:1} * count ))
+  done
+
+  local digit=$(( 11 - sum % 11 ))
+  [[ $digit -lt 10 ]] && digit=$digit || digit=0
+
+  digits+=$digit
+}
+
+digits=$(cat /dev/urandom | LC_ALL=C tr -dc '0-9' | fold -w 9 | head -n 1)
+add_verification_digit
+add_verification_digit
+echo $digits
