@@ -1,0 +1,28 @@
+#!/bin/bash
+
+while getopts ":u:s:c:" args; do
+  case $args  in
+    u)
+      user="$OPTARG"
+      ;;
+    s)
+      site="$OPTARG"
+      ;;
+    c)
+      counter="$OPTARG"
+      ;;
+  esac
+done
+
+if [[ -z "$counter" ]]; then
+  counter=0
+fi
+
+# Read passphrase
+passphrase=
+while [ -z "$passphrase" ]
+do
+  read -r -p "[?] Passphrase: " passphrase
+done
+
+echo -n "$user:$passphrase:$counter:$site" | openssl dgst -sha256 -binary | openssl base64 | sed -e 's/[^0-9A-Za-z]//g' | grep -E -o '.{3}' | head -4 | paste -sd'-' -

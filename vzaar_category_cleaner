@@ -1,0 +1,27 @@
+#!/bin/sh
+
+next="https://api.vzaar.com/api/v2/videos?category_id=9488&per_page=100"
+
+while [ ! "$next" == "null" ]
+do
+  echo "*** Starting page: $next ***"
+
+  data=$(curl -s --request GET \
+    --url "$next" \
+    --header 'x-auth-token: foo' \
+    --header 'x-client-id: bar')
+  ids=$(echo "$data" | jq -r '.data[].id')
+  next=$(echo "$data" | jq -r '.meta.links.next')
+
+  while read id
+  do
+    curl -s --request DELETE \
+      --url "https://api.vzaar.com/api/v2/videos/$id" \
+      --header 'x-auth-token: foo' \
+      --header 'x-client-id: bar' > /dev/null
+
+    echo "Deleted! ID: $id"
+  done <<< "$ids"
+done
+
+echo "*** FINISHED! ***"

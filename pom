@@ -1,0 +1,145 @@
+#!/bin/sh
+
+POM_TMP=$TMPDIR/pom
+
+WORK_TIME=25
+SHORT_BREAK_TIME=5
+LONG_BREAK_TIME=15
+
+WORK_TIME_IN_SECONDS=$((WORK_TIME * 60))
+SHORT_BREAK_TIME_IN_SECONDS=$((SHORT_BREAK_TIME * 60))
+LONG_BREAK_TIME_IN_SECONDS=$((LONG_BREAK_TIME * 60))
+
+readTmp() {
+  [ -f "$POM_TMP" ] && while read -r n k t
+  do
+    CURR_NUMBER=$n
+    CURR_KIND=$k
+    CURR_TIME=$t
+  done < "$POM_TMP"
+}
+
+removeTmp() {
+  [ -f "$POM_TMP" ] && rm "$POM_TMP"
+}
+
+getPid() {
+  PID=$(pgrep -f "pom start|pom skip")
+}
+
+killProcess() {
+  [ -n "$PID" ] && kill -9 "$PID" && unset PID
+}
+
+# TODO: Can be improved
+setStartValues() {
+  readTmp
+  [ -z "$CURR_NUMBER" ] && NUMBER=1 || NUMBER=$CURR_NUMBER
+  [ -z "$CURR_KIND" ] && KIND="work" || KIND=$CURR_KIND
+  TIME=$(date +"%T")
+}
+
+setDetails() {
+  case "$KIND" in
+    work)
+      DURATION=$WORK_TIME_IN_SECONDS
+      MESSAGE="Pomodoro started"
+      ;;
+    short-break)
+      DURATION=$SHORT_BREAK_TIME_IN_SECONDS
+      MESSAGE="Short break started"
+      ;;
+    long-break)
+      DURATION=$LONG_BREAK_TIME_IN_SECONDS
+      MESSAGE="Long break started"
+      ;;
+  esac
+}
+
+notify() {
+  osascript -e "display notification \"\" with title \"$MESSAGE\" sound name \"default\""
+}
+
+next() {
+  setStartValues
+
+  if [ "$CURR_NUMBER" = "4" ]; then
+    if [ "$CURR_KIND" = "work" ]; then
+      KIND="long-break"
+    else
+      NUMBER=1
+      KIND="work"
+    fi
+  else
+    if [ "$CURR_KIND" = "work" ]; then
+      KIND="short-break"
+    else
+      NUMBER=$((CURR_NUMBER + 1))
+      KIND="work"
+    fi
+  fi
+}
+
+run() {
+  setDetails
+  notify
+  echo "$NUMBER $KIND $TIME" > "$POM_TMP"
+  sleep "$DURATION" && next && run &
+}
+
+start() {
+  if [ -n "$PID" ]; then
+    echo "Already running"
+    return
+  fi
+
+  run
+}
+
+clear() {
+  killProcess
+  removeTmp
+}
+
+skip() {
+  killProcess
+  next && run
+}
+
+getPid
+if [ -z "$1" ]; then
+  if [ -n "$PID" ]; then
+    # TODO: print current formatted information
+     if [ -f "$POM_TMP" ]; then
+       cat "$POM_TMP"
+     else
+       clear
+       echo "Missing Pom files, pomodoro cleared"
+     fi
+  else
+    echo "Pomodoro not running"
+  fi
+else
+  case "$1" in
+    start)
+      start
+      echo "Pomodoro started"
+      ;;
+    stop)
+      killProcess
+      echo "Pomodoro stopped"
+      ;;
+    skip)
+      skip
+      echo "Pomodoro skipped"
+      ;;
+    clear)
+      clear
+      echo "Pomodoro cleared"
+      ;;
+    *)
+      # TODO: display help
+      echo "Sorry"
+      ;;
+  esac
+fi
